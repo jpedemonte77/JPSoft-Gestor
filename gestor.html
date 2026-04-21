@@ -81,6 +81,41 @@ mark{background:#fef08a;color:#713f12;border-radius:2px;padding:0 1px}
 .page-btn:hover:not(:disabled){background:#f0f0ee}
 .page-btn:disabled{opacity:.35;cursor:default}
 .page-info{font-size:11px;color:#aaa}
+
+/* ── TARJETAS MÓVIL ── */
+.card-list{display:none;flex-direction:column;gap:10px}
+.prod-card{background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:12px 14px}
+.prod-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.prod-card-desc{font-size:13px;font-weight:500;color:#1a1a1a;line-height:1.35;flex:1}
+.prod-card-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.prod-card-venta{font-size:22px;font-weight:700;color:#1a1a1a}
+.prod-card-unit{font-size:10px;color:#aaa;margin-left:2px;font-weight:400}
+.prod-card-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.prod-card-lista{font-size:11px;color:#bbb}
+.prod-card-diff{font-size:11px;color:#16a34a;font-weight:500}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  #main{padding:1rem}
+  .header h1{font-size:17px}
+  .header h2{font-size:11px}
+  .top-controls{grid-template-columns:1fr}
+  .search-wrap input{font-size:15px;padding:12px 12px 12px 40px}
+  .search-icon{font-size:16px;left:11px}
+  .search-hint span{font-size:11px}
+  .filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .filter-btn{white-space:nowrap;flex-shrink:0;font-size:12px;padding:6px 14px}
+  .stats-row{gap:6px}
+  .stat{padding:6px 10px}
+  .stat-n{font-size:15px}
+  .stat-l{font-size:9px}
+  .table-wrap{display:none}
+  .card-list{display:flex}
+  .page-btn{padding:8px 18px;font-size:13px}
+  .pagination{gap:12px;padding:1rem 0}
+  .page-info{font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -142,6 +177,7 @@ mark{background:#fef08a;color:#713f12;border-radius:2px;padding:0 1px}
         <tbody id="tableBody"></tbody>
       </table>
     </div>
+    <div class="card-list" id="cardList"></div>
     <div id="emptyMsg" class="empty" style="display:none">No se encontraron productos. Probá con menos palabras.</div>
     <div class="pagination" id="pagination"></div>
   </div>
@@ -268,16 +304,20 @@ window.applyFilters = function(){
 
 function renderTable(){
   const tbody=document.getElementById('tableBody');
+  const cardList=document.getElementById('cardList');
   const empty=document.getElementById('emptyMsg');
   const raw=document.getElementById('searchInput').value;
   const words=norm(raw).split(' ').filter(Boolean);
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   if(page>totalPages) page=totalPages;
   const slice=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
-  if(!slice.length){tbody.innerHTML='';empty.style.display='block';}
-  else{
+  if(!slice.length){
+    tbody.innerHTML='';
+    cardList.innerHTML='';
+    empty.style.display='block';
+  } else {
     empty.style.display='none';
-    tbody.innerHTML=slice.map(p=>{
+    const rows=slice.map(p=>{
       const venta=getPrecioVenta(p);
       const diff=venta-p.lista;
       const descHL=words.length?highlight(p.desc,words):p.desc;
@@ -285,17 +325,37 @@ function renderTable(){
       if(p.unit==='kg') unitBadge=`<span class="unit-badge unit-kg">x kg</span>`;
       else if(p.unit==='100g') unitBadge=`<span class="unit-badge unit-100g">x 100g</span>`;
       let precioLabel=fmt(venta);
-      if(p.unit==='kg') precioLabel=fmt(venta)+`<span style="font-size:9px;color:#aaa;font-weight:400">/kg</span>`;
-      else if(p.unit==='100g') precioLabel=fmt(venta)+`<span style="font-size:9px;color:#aaa;font-weight:400">/100g</span>`;
-      return `<tr>
-        <td><span class="badge ${badgeClass(p.proveedor)}">${p.proveedor}</span></td>
-        <td class="cod-cell">${p.cod||'—'}</td>
-        <td class="desc">${descHL}${unitBadge}</td>
-        <td class="num p-lista">${fmt(p.lista)}</td>
-        <td class="num p-venta">${precioLabel}</td>
-        <td class="num p-diff">+${fmt(diff)}</td>
-      </tr>`;
-    }).join('');
+      const unitSuffix=p.unit==='kg'?'/kg':p.unit==='100g'?'/100g':'';
+      if(unitSuffix) precioLabel=fmt(venta)+`<span style="font-size:9px;color:#aaa;font-weight:400">${unitSuffix}</span>`;
+      return {p,venta,diff,descHL,unitBadge,precioLabel,unitSuffix};
+    });
+    // Tabla escritorio
+    tbody.innerHTML=rows.map(({p,diff,descHL,unitBadge,precioLabel})=>`<tr>
+      <td><span class="badge ${badgeClass(p.proveedor)}">${p.proveedor}</span></td>
+      <td class="cod-cell">${p.cod||'—'}</td>
+      <td class="desc">${descHL}${unitBadge}</td>
+      <td class="num p-lista">${fmt(p.lista)}</td>
+      <td class="num p-venta">${precioLabel}</td>
+      <td class="num p-diff">+${fmt(diff)}</td>
+    </tr>`).join('');
+    // Tarjetas móvil
+    cardList.innerHTML=rows.map(({p,venta,diff,descHL,unitSuffix})=>`
+      <div class="prod-card">
+        <div class="prod-card-top">
+          <div class="prod-card-desc">${descHL}</div>
+          <span class="badge ${badgeClass(p.proveedor)}">${p.proveedor}</span>
+        </div>
+        <div class="prod-card-bottom">
+          <div>
+            <span class="prod-card-venta">${fmt(venta)}</span>
+            <span class="prod-card-unit">${unitSuffix}</span>
+          </div>
+          <div class="prod-card-meta">
+            <span class="prod-card-lista">Lista: ${fmt(p.lista)}</span>
+            <span class="prod-card-diff">+${fmt(diff)}</span>
+          </div>
+        </div>
+      </div>`).join('');
   }
   renderPagination(totalPages);
 }
