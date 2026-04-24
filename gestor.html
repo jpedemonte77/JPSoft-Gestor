@@ -185,7 +185,14 @@ mark{background:#fef08a;color:#713f12;border-radius:2px;padding:0 1px}
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+// ════════════════════════════════════════════════════════
+// CAMBIO 1 DE 2 — Importar "onValue" en lugar de "get"
+// "get" lee los datos UNA SOLA VEZ al abrir la página.
+// "onValue" los escucha EN TIEMPO REAL: cada vez que vos
+// publicás precios nuevos desde el admin, Firebase avisa
+// automáticamente y la página se actualiza sola.
+// ════════════════════════════════════════════════════════
+import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
 const FIREBASE_URL = 'https://jpsoft---gestor-default-rtdb.firebaseio.com';
 const app = initializeApp({ databaseURL: FIREBASE_URL });
@@ -220,14 +227,34 @@ function getPrecioVenta(p){
 }
 
 // ── Cargar desde Firebase ──
-async function cargarDesdeFirebase(){
-  try {
-    const snap = await get(ref(db, 'gestor'));
+function cargarDesdeFirebase(){
+
+  // ════════════════════════════════════════════════════════
+  // CAMBIO 2 DE 2 — Reemplazar get() por onValue()
+  //
+  // ANTES (una sola lectura):
+  //   const snap = await get(ref(db, 'gestor'));
+  //   ... procesar snap ...
+  //
+  // AHORA (escucha continua):
+  //   onValue() se ejecuta inmediatamente al abrir la página
+  //   Y TAMBIÉN cada vez que los datos cambian en Firebase.
+  //   Es decir: cuando vos publicás precios nuevos desde el
+  //   admin, todos los clientes conectados los ven al instante
+  //   sin tener que refrescar la página.
+  // ════════════════════════════════════════════════════════
+  onValue(ref(db, 'gestor'), (snap) => {
     if(!snap.exists()){
       mostrarError('No hay datos disponibles. El administrador debe publicar las listas primero.');
       return;
     }
     const data = snap.val();
+
+    // Resetear maps antes de reasignar (por si hubo actualización)
+    Object.keys(gananciaMap).forEach(k => delete gananciaMap[k]);
+    Object.keys(useSugeridoMap).forEach(k => delete useSugeridoMap[k]);
+    Object.keys(provColorMap).forEach(k => delete provColorMap[k]);
+
     allProducts = data.products || [];
     Object.assign(gananciaMap, data.gananciaMap||{});
     Object.assign(useSugeridoMap, data.useSugeridoMap||{});
@@ -244,9 +271,9 @@ async function cargarDesdeFirebase(){
     buildFilters();
     applyFilters();
 
-  } catch(err){
+  }, (err) => {
     mostrarError('Error al conectar con el servidor. Verificá tu conexión a internet.<br><small>'+err.message+'</small>');
-  }
+  });
 }
 
 function mostrarError(msg){
